@@ -149,7 +149,7 @@
 
     <!-- Product Details Modal -->
     <div id="infoModal" class="absolute bottom-0 left-0 right-0 z-[1001] bg-white rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.2)] transform translate-y-full transition-transform duration-300">
-        <div class="p-6 pb-10">
+        <div class="p-6 pb-24"> <!-- Increased bottom padding for mobile safety -->
             <div class="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-4"></div>
             <div class="flex justify-between items-start mb-2">
                 <div>
@@ -181,10 +181,16 @@
 
     <script>
         // --- CONFIGURATION ---
+        // IMPORTANT: PASTE YOUR API KEY HERE FOR AI SEARCH TO WORK
         const apiKey = "AIzaSyB4V71q1d5AhErZn1NrcNQR_Tp4wX7RL5E"; 
+        
+        // 1. Connect to the Live Sheet
         const GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRo6MENz0SiOu7rr77XEqxcEbmYxvYCLSbBwPOBQoCe9bfW8PQIlMwVMGePG5zgnqC7LXNF3x6MrT6L/pub?output=csv";
+        
+        // 2. Default center (Gertens)
         const START_LOC = [44.872063, -93.051572]; 
 
+        // 3. Color Definitions (Matching the Admin Tool)
         const ROW_TYPES = {
             "Annuals": "#8B0000",
             "Color Block": "#FF00FF",
@@ -207,35 +213,45 @@
             maxZoom: 20
         }).setView(START_LOC, 19);
 
+        // Satellite Layer
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
             attribution: 'Tiles &copy; Esri',
             maxZoom: 20
         }).addTo(map);
         
+        // Labels
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
             maxZoom: 20
         }).addTo(map);
 
-        let allRows = [];
-        let polygonLayers = {};
+        let allRows = []; // Will store data from Google Sheet
+        let polygonLayers = {}; // Leaflet layers
         let currentSelection = null;
         let userMarker = null;
-        let userAccuracyCircle = null;
-        let searchTimeout = null;
-        let watchId = null;
+        let userAccuracyCircle = null; // New circle for accuracy
+        let searchTimeout = null; // For debounce
+        let watchId = null; // Variable to store GPS watcher ID
 
         // --- LOAD DATA ---
         function init() {
+            // Cache buster to ensure customers always get new data
             const freshUrl = GOOGLE_SHEET_URL + '&t=' + Date.now();
+
             Papa.parse(freshUrl, {
                 download: true,
                 header: true,
                 skipEmptyLines: true,
-                complete: function(results) { processSheetData(results.data); },
-                error: function(err) { console.error("Error loading sheet:", err); }
+                complete: function(results) {
+                    processSheetData(results.data);
+                },
+                error: function(err) {
+                    console.error("Error loading sheet:", err);
+                    alert("Could not load store data. Please try refreshing.");
+                }
             });
         }
 
+        // Helper to find columns even if casing matches imperfectly
         function getCol(row, possibleNames) {
             for (const key of Object.keys(row)) {
                 if (possibleNames.some(n => n.toLowerCase() === key.toLowerCase().trim())) return row[key];
@@ -254,28 +270,37 @@
                 if(!coordsRaw || !id) return;
 
                 try {
+                    // Handle double-CSV encoding if present
                     if (typeof coordsRaw === 'string' && coordsRaw.startsWith('"') && coordsRaw.endsWith('"')) {
                         coordsRaw = coordsRaw.substring(1, coordsRaw.length - 1).replace(/""/g, '"');
                     }
                     const coords = JSON.parse(coordsRaw);
-                    const color = ROW_TYPES[type] || "#8B0000";
+                    const color = ROW_TYPES[type] || "#8B0000"; // Default to Red if type unknown
 
+                    // Create Shape
                     let poly;
                     if (coords.length === 4) {
+                        // Box
                         poly = L.rectangle(L.latLngBounds(coords), { color: color, fillColor: color, fillOpacity: 0.3, weight: 2 });
                     } else {
+                        // Polygon
                         poly = L.polygon(coords, { color: color, fillColor: color, fillOpacity: 0.3, weight: 2 });
                     }
                     
                     poly.addTo(map);
 
+                    // Store Data
                     const rowData = {
-                        id: id, name: name, type: type, color: color,
+                        id: id,
+                        name: name,
+                        type: type,
+                        color: color,
                         products: products || "No products listed yet.",
                         center: poly.getBounds().getCenter(),
                         layer: poly
                     };
 
+                    // Add click event
                     poly.on('click', (e) => {
                         L.DomEvent.stopPropagation(e);
                         selectRow(rowData);
@@ -284,7 +309,9 @@
                     allRows.push(rowData);
                     polygonLayers[rowData.id] = poly;
 
-                } catch (e) { console.error("Error parsing row:", row, e); }
+                } catch (e) {
+                    console.error("Error parsing row:", row, e);
+                }
             });
         }
 
@@ -360,6 +387,8 @@
         searchInput.addEventListener('input', (e) => {
             dismissHint(); 
             const q = e.target.value.toLowerCase();
+            
+            // Clear previous AI timer
             if(searchTimeout) clearTimeout(searchTimeout);
 
             if (q.length === 0) {
@@ -370,52 +399,101 @@
             }
             clearBtn.classList.remove('hidden');
 
+            // 1. Run Instant Local Search
             const localMatches = allRows.filter(r => 
                 r.name.toLowerCase().includes(q) || 
                 r.products.toLowerCase().includes(q)
             );
 
+            // Display Local Results immediately
             displayResults(localMatches);
 
+            // 2. If NO local matches, trigger AI after delay
             if (localMatches.length === 0 && q.length > 2) {
                 resultsBox.classList.remove('hidden');
                 resultsBox.innerHTML = `<div class="p-4 text-gray-400 text-center text-sm italic">No exact match. Searching database...</div>`;
-                searchTimeout = setTimeout(() => { performAiSearch(q); }, 1000);
+                
+                // Debounce AI call (wait 1s after typing stops)
+                searchTimeout = setTimeout(() => {
+                    performAiSearch(q);
+                }, 1000);
             }
         });
 
-        // --- AI SEARCH ---
+        // --- AI SEARCH IMPLEMENTATION ---
         async function performAiSearch(query) {
+            // FIX: Notify user if Key is missing instead of failing silently
             if (!apiKey) {
-                resultsBox.innerHTML = `<div class="p-4 text-red-500 text-center text-sm">AI Search Disabled</div>`;
+                resultsBox.innerHTML = `
+                    <div class="p-4 text-red-500 text-center text-sm">
+                        <i class="fa-solid fa-triangle-exclamation"></i><br>
+                        <strong>AI Search Disabled</strong><br>
+                        Please add a Google Gemini API Key to the code to enable smart search.
+                    </div>`;
                 return; 
             }
-            aiLoader.classList.remove('hidden');
 
+            aiLoader.classList.remove('hidden'); // Show "AI Thinking" spinner
+
+            // Construct simplified inventory for AI context
             const inventoryContext = allRows.map(r => `ID: ${r.id}, Products: ${r.products}`).join("\n");
-            const prompt = `You are a garden center assistant. The user searched for: "${query}". Here is our inventory list: ${inventoryContext} Task: Find the best matches for the user's search. Return ONLY a JSON array of the matching Row IDs.`;
+
+            const prompt = `
+                You are a garden center assistant. The user searched for: "${query}".
+                Here is our inventory list:
+                ${inventoryContext}
+
+                Task: Find the best matches for the user's search.
+                - Handle misspellings (e.g. "hidedrainga" -> "Hydrangea").
+                - Handle scientific names (e.g. "macrophylla" -> "Hydrangea").
+                - Return ONLY a JSON array of the matching Row IDs.
+                - Example output: ["row-101", "row-205"]
+            `;
 
             try {
                 const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }]
+                    })
                 });
 
-                if (!response.ok) throw new Error(`API Error: ${response.status}`);
+                // NEW: Handle API Errors gracefully
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    console.error("Gemini API Error Detail:", errorData);
+                    throw new Error(errorData.error?.message || `API Error: ${response.status}`);
+                }
+
                 const data = await response.json();
+                
+                // Safety check: Did AI return an answer?
+                if (!data.candidates || !data.candidates[0].content) {
+                    throw new Error("AI returned no results.");
+                }
+
                 const text = data.candidates[0].content.parts[0].text;
+                
+                // Extract JSON from response (clean potential markdown code blocks)
                 const jsonString = text.replace(/```json/g, '').replace(/```/g, '').trim();
                 const matchedIds = JSON.parse(jsonString);
 
                 if (Array.isArray(matchedIds) && matchedIds.length > 0) {
+                    // Filter allRows based on AI Ids
                     const aiMatches = allRows.filter(r => matchedIds.includes(r.id));
-                    displayResults(aiMatches, true);
+                    displayResults(aiMatches, true); // True = isAiResult
                 } else {
                     resultsBox.innerHTML = `<div class="p-4 text-gray-500 text-center">Sorry, we couldn't find anything like "${query}".</div>`;
                 }
+
             } catch (err) {
-                resultsBox.innerHTML = `<div class="p-4 text-gray-500 text-center">No results found.</div>`;
+                console.error("AI Search Error:", err);
+                // Show a friendly error in the UI (and the real one in Console)
+                resultsBox.innerHTML = `<div class="p-4 text-red-400 text-center text-xs">
+                    Search unavailable.<br>
+                    <span class="opacity-50">(${err.message.slice(0, 50)}...)</span>
+                </div>`;
             } finally {
                 aiLoader.classList.add('hidden');
             }
@@ -423,14 +501,17 @@
 
         function displayResults(matches, isAiResult = false) {
             resultsBox.innerHTML = '';
+            
             if (matches.length > 0) {
                 resultsBox.classList.remove('hidden');
+                
                 if (isAiResult) {
                     const header = document.createElement('div');
                     header.className = "px-4 py-2 bg-violet-50 text-violet-600 text-xs font-bold border-b border-violet-100 flex items-center gap-2";
                     header.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles ai-icon"></i> AI Suggestions`;
                     resultsBox.appendChild(header);
                 }
+
                 matches.forEach(m => {
                     const div = document.createElement('div');
                     div.className = "p-4 hover:bg-slate-50 cursor-pointer border-b border-gray-100 last:border-0";
@@ -445,12 +526,14 @@
                     div.onclick = () => {
                         selectRow(m);
                         resultsBox.classList.add('hidden');
-                        searchInput.value = m.name;
+                        searchInput.value = m.name; // Auto-fill search bar
                         searchInput.blur();
                     };
                     resultsBox.appendChild(div);
                 });
             } else if (!isAiResult) {
+                // Only hide if it's a local search failure; 
+                // AI search failure handles its own empty state message
                 resultsBox.classList.add('hidden');
             }
         }
@@ -472,12 +555,15 @@
             }
 
             const icon = document.querySelector('.fa-location-crosshairs');
+            // 1. If tracking already set up, just fly to current marker
             if (userMarker) {
                 map.flyTo(userMarker.getLatLng(), 19);
                 return;
             }
 
             icon.classList.add('fa-spin');
+
+            // Clear any old watcher if somehow stuck
             if(watchId) navigator.geolocation.clearWatch(watchId);
 
             watchId = navigator.geolocation.watchPosition(
@@ -489,12 +575,14 @@
                     icon.classList.remove('fa-spin');
 
                     if (!userMarker) {
+                        // First Fix: Create Marker
                         const blueDotIcon = L.divIcon({
                             className: 'gps-marker',
                             iconSize: [24, 24], 
                             iconAnchor: [12, 12]
                         });
                         userMarker = L.marker([lat, lng], {icon: blueDotIcon}).addTo(map);
+
                         userAccuracyCircle = L.circle([lat, lng], {
                             radius: accuracy,
                             color: '#3b82f6',
@@ -502,24 +590,35 @@
                             fillOpacity: 0.15,
                             weight: 1
                         }).addTo(map);
+
+                        // Center map on first finding
                         map.flyTo([lat, lng], 19);
                     } else {
+                        // Subsequent Updates: Move Marker smoothly
                         userMarker.setLatLng([lat, lng]);
                         userAccuracyCircle.setLatLng([lat, lng]);
                         userAccuracyCircle.setRadius(accuracy);
                     }
                 },
                 (err) => {
-                    if(err.code === 1) {
+                    // Handle errors
+                    if(err.code === 1) { // Denied
                         icon.classList.remove('fa-spin');
                         alert("Please enable location services.");
                     }
+                    // For timeouts, just keep trying (don't stop spinner or alert)
                 },
-                { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 }
+                { 
+                    enableHighAccuracy: true,
+                    maximumAge: 2000, 
+                    timeout: 20000 
+                }
             );
         }
 
+        // Start App
         init();
+
     </script>
 </body>
 </html>
