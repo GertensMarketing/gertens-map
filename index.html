@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Gertens Interactive Store Map</title>
+    <title>Gertens Garden Finder</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -103,7 +103,7 @@
     <div class="absolute top-0 left-0 right-0 z-[1000] p-4 pointer-events-none">
         <div class="glass pointer-events-auto w-full max-w-md mx-auto rounded-xl flex items-center shadow-lg transition-all focus-within:ring-2 ring-red-700 relative">
             <i class="fa-solid fa-magnifying-glass text-gray-400 ml-4"></i>
-            <input type="text" id="searchInput" placeholder="Search plants..." 
+            <input type="text" id="searchInput" placeholder="Locate a plant or item..." 
                    class="w-full bg-transparent border-none outline-none px-3 py-4 text-gray-800 text-lg placeholder-gray-500" autocomplete="off">
             
             <!-- AI Loading Spinner (Hidden by default) -->
@@ -300,7 +300,7 @@
 
         // --- INTERACTION ---
         function selectRow(data) {
-            dismissHint(); // Dismiss hint on interaction
+            dismissHint(); 
             if (currentSelection) {
                 if(currentSelection._path) currentSelection._path.classList.remove('highlight-row');
             }
@@ -309,9 +309,17 @@
             if(poly._path) poly._path.classList.add('highlight-row');
             currentSelection = poly;
 
-            const bottomPadding = window.innerHeight * 0.45;
-            map.flyTo(data.center, 20, { 
-                paddingBottomRight: [0, bottomPadding], 
+            // --- MOBILE OPTIMIZATION FIXED (MANUAL OFFSET) ---
+            const targetZoom = 20;
+            const targetPoint = map.project(data.center, targetZoom);
+            
+            // Shift map center DOWN by 25% of screen height to push target UP
+            const yOffset = map.getSize().y * 0.25; 
+            
+            const newCenterPoint = L.point(targetPoint.x, targetPoint.y + yOffset);
+            const newCenter = map.unproject(newCenterPoint, targetZoom);
+
+            map.flyTo(newCenter, targetZoom, { 
                 duration: 1.0,
                 easeLinearity: 0.5
             });
@@ -334,10 +342,10 @@
 
         map.on('click', () => {
             closeModal();
-            dismissHint(); // Dismiss hint on map click
+            dismissHint(); 
         });
         
-        map.on('dragstart', dismissHint); // Dismiss hint when user drags map
+        map.on('dragstart', dismissHint);
 
         function navigateHere() {
             locateUser(); 
@@ -350,7 +358,7 @@
         const aiLoader = document.getElementById('aiLoader');
 
         searchInput.addEventListener('input', (e) => {
-            dismissHint(); // Dismiss hint when user types
+            dismissHint(); 
             const q = e.target.value.toLowerCase();
             if(searchTimeout) clearTimeout(searchTimeout);
 
@@ -457,7 +465,7 @@
 
         // --- GPS BLUE DOT ---
         function locateUser() {
-            dismissHint(); // Dismiss hint when clicking locate
+            dismissHint(); 
             if (!navigator.geolocation) {
                 alert("Your browser does not support Geolocation.");
                 return;
