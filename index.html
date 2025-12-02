@@ -272,7 +272,18 @@
             if(poly._path) poly._path.classList.add('highlight-row');
             currentSelection = poly;
 
-            map.flyTo(data.center, 20, { paddingBottomRight: [0, 300] });
+            // --- MOBILE OPTIMIZATION FIXED HERE ---
+            // Calculate padding to center the item in the visible area ABOVE the modal
+            // On mobile, the modal takes about 45-50% of the screen.
+            // We tell the map to treat the bottom 45% of the screen as "padding" (unusable space),
+            // effectively centering the target in the top 55% of the screen.
+            const bottomPadding = window.innerHeight * 0.45;
+
+            map.flyTo(data.center, 20, { 
+                paddingBottomRight: [0, bottomPadding], 
+                duration: 1.0,
+                easeLinearity: 0.5
+            });
 
             document.getElementById('modalRowTitle').innerText = data.name;
             document.getElementById('modalRowType').innerText = data.type;
@@ -376,8 +387,21 @@
                     })
                 });
 
+                // NEW: Handle API Errors gracefully
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    console.error("Gemini API Error Detail:", errorData);
+                    throw new Error(errorData.error?.message || `API Error: ${response.status}`);
+                }
+
                 const data = await response.json();
-                const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                
+                // Safety check: Did AI return an answer?
+                if (!data.candidates || !data.candidates[0].content) {
+                    throw new Error("AI returned no results.");
+                }
+
+                const text = data.candidates[0].content.parts[0].text;
                 
                 // Extract JSON from response (clean potential markdown code blocks)
                 const jsonString = text.replace(/```json/g, '').replace(/```/g, '').trim();
@@ -393,7 +417,11 @@
 
             } catch (err) {
                 console.error("AI Search Error:", err);
-                resultsBox.innerHTML = `<div class="p-4 text-gray-500 text-center">No results found.</div>`;
+                // Show a friendly error in the UI (and the real one in Console)
+                resultsBox.innerHTML = `<div class="p-4 text-red-400 text-center text-xs">
+                    Search unavailable.<br>
+                    <span class="opacity-50">(${err.message.slice(0, 50)}...)</span>
+                </div>`;
             } finally {
                 aiLoader.classList.add('hidden');
             }
