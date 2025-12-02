@@ -209,6 +209,7 @@
         let userMarker = null;
         let userAccuracyCircle = null; // New circle for accuracy
         let searchTimeout = null; // For debounce
+        let watchId = null; // Variable to store GPS watcher ID
 
         // --- LOAD DATA ---
         function init() {
@@ -501,7 +502,7 @@
             closeModal();
         };
 
-        // --- GPS BLUE DOT ---
+        // --- GPS BLUE DOT (UPDATED TO TRACK MOVING) ---
         function locateUser() {
             if (!navigator.geolocation) {
                 alert("Your browser does not support Geolocation.");
@@ -509,44 +510,66 @@
             }
 
             const icon = document.querySelector('.fa-location-crosshairs');
+
+            // 1. If tracking already set up, just fly to current marker
+            if (userMarker) {
+                map.flyTo(userMarker.getLatLng(), 19);
+                return;
+            }
+
+            // 2. Otherwise start watching
             icon.classList.add('fa-spin');
 
-            navigator.geolocation.getCurrentPosition(
+            // Clear any old watcher if somehow stuck
+            if(watchId) navigator.geolocation.clearWatch(watchId);
+
+            watchId = navigator.geolocation.watchPosition(
                 (pos) => {
                     const lat = pos.coords.latitude;
                     const lng = pos.coords.longitude;
                     const accuracy = pos.coords.accuracy;
 
-                    // Clean up old markers
-                    if (userMarker) map.removeLayer(userMarker);
-                    if (userAccuracyCircle) map.removeLayer(userAccuracyCircle);
-
-                    // 1. Add Blue Dot
-                    const blueDotIcon = L.divIcon({
-                        className: 'gps-marker',
-                        iconSize: [24, 24], // Slightly larger for the new style
-                        iconAnchor: [12, 12]
-                    });
-                    userMarker = L.marker([lat, lng], {icon: blueDotIcon}).addTo(map);
-
-                    // 2. Add Accuracy Circle (Light Blue)
-                    userAccuracyCircle = L.circle([lat, lng], {
-                        radius: accuracy, // Size in meters
-                        color: '#3b82f6',
-                        fillColor: '#3b82f6',
-                        fillOpacity: 0.15,
-                        weight: 1
-                    }).addTo(map);
-
-                    map.flyTo([lat, lng], 19);
                     icon.classList.remove('fa-spin');
+
+                    if (!userMarker) {
+                        // First Fix: Create Marker
+                        const blueDotIcon = L.divIcon({
+                            className: 'gps-marker',
+                            iconSize: [24, 24], 
+                            iconAnchor: [12, 12]
+                        });
+                        userMarker = L.marker([lat, lng], {icon: blueDotIcon}).addTo(map);
+
+                        userAccuracyCircle = L.circle([lat, lng], {
+                            radius: accuracy,
+                            color: '#3b82f6',
+                            fillColor: '#3b82f6',
+                            fillOpacity: 0.15,
+                            weight: 1
+                        }).addTo(map);
+
+                        // Center map on first finding
+                        map.flyTo([lat, lng], 19);
+                    } else {
+                        // Subsequent Updates: Move Marker smoothly
+                        userMarker.setLatLng([lat, lng]);
+                        userAccuracyCircle.setLatLng([lat, lng]);
+                        userAccuracyCircle.setRadius(accuracy);
+                    }
                 },
                 (err) => {
-                    icon.classList.remove('fa-spin');
-                    console.warn(err);
-                    alert("Could not get location. Please allow GPS permissions.");
+                    // Handle errors
+                    if(err.code === 1) { // Denied
+                        icon.classList.remove('fa-spin');
+                        alert("Please enable location services.");
+                    }
+                    // For timeouts, just keep trying (don't stop spinner or alert)
                 },
-                { enableHighAccuracy: true }
+                { 
+                    enableHighAccuracy: true,
+                    maximumAge: 2000, 
+                    timeout: 20000 
+                }
             );
         }
 
