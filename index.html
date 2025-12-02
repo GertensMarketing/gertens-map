@@ -26,11 +26,16 @@
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
         }
 
-        /* The Blue Dot Pulse Animation */
+        /* The Blue Dot Pulse Animation (Fixed) */
         .gps-marker {
             background-color: #3b82f6;
             border: 3px solid white;
             border-radius: 50%;
+            /* Force dimensions so it isn't collapsed */
+            width: 20px !important;
+            height: 20px !important;
+            display: block;
+            box-sizing: border-box;
             box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
             animation: pulse-blue 2s infinite;
         }
@@ -180,6 +185,7 @@
         let polygonLayers = {}; // Leaflet layers
         let currentSelection = null;
         let userMarker = null;
+        let userAccuracyCircle = null; // New circle for accuracy
         let searchTimeout = null; // For debounce
 
         // --- LOAD DATA ---
@@ -275,11 +281,7 @@
             if(poly._path) poly._path.classList.add('highlight-row');
             currentSelection = poly;
 
-            // --- MOBILE OPTIMIZATION FIXED HERE ---
-            // Calculate padding to center the item in the visible area ABOVE the modal
-            // On mobile, the modal takes about 45-50% of the screen.
-            // We tell the map to treat the bottom 45% of the screen as "padding" (unusable space),
-            // effectively centering the target in the top 55% of the screen.
+            // --- MOBILE OPTIMIZATION ---
             const bottomPadding = window.innerHeight * 0.45;
 
             map.flyTo(data.center, 20, { 
@@ -491,17 +493,29 @@
                 (pos) => {
                     const lat = pos.coords.latitude;
                     const lng = pos.coords.longitude;
-                    const acc = pos.coords.accuracy;
+                    const accuracy = pos.coords.accuracy;
 
+                    // Clean up old markers
                     if (userMarker) map.removeLayer(userMarker);
+                    if (userAccuracyCircle) map.removeLayer(userAccuracyCircle);
 
+                    // 1. Add Blue Dot
                     const blueDotIcon = L.divIcon({
                         className: 'gps-marker',
                         iconSize: [20, 20],
                         iconAnchor: [10, 10]
                     });
-
                     userMarker = L.marker([lat, lng], {icon: blueDotIcon}).addTo(map);
+
+                    // 2. Add Accuracy Circle (Light Blue)
+                    userAccuracyCircle = L.circle([lat, lng], {
+                        radius: accuracy, // Size in meters
+                        color: '#3b82f6',
+                        fillColor: '#3b82f6',
+                        fillOpacity: 0.15,
+                        weight: 1
+                    }).addTo(map);
+
                     map.flyTo([lat, lng], 19);
                     icon.classList.remove('fa-spin');
                 },
