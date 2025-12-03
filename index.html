@@ -18,8 +18,11 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #f0fdf4; font-family: sans-serif; }
-        #map { height: 100vh; width: 100vw; z-index: 0; }
+        /* FIX: Changed height to 100% and added width 100% to ensure full coverage */
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background: #f0fdf4; font-family: sans-serif; }
+        
+        /* FIX: Changed from 100vh to absolute positioning to anchor to bottom of screen on mobile */
+        #map { position: absolute; top: 0; left: 0; bottom: 0; right: 0; width: 100%; height: 100%; z-index: 0; }
         
         /* Floating Glass Panels */
         .glass {
@@ -659,6 +662,7 @@
                         icon.classList.remove('fa-spin');
                         console.log("Please enable location services.");
                     }
+                    // For timeouts, just keep trying (don't stop spinner or alert)
                 },
                 { 
                     enableHighAccuracy: true,
