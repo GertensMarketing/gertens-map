@@ -107,13 +107,16 @@
             color: #8b5cf6; /* Violet */
         }
         
-        /* Force Modal Hidden Initially */
+        /* FIXED: Modal Visibility Logic */
         #infoModal {
-            transform: translateY(100%); 
-            transition: transform 0.3s cubic-bezier(0, 0, 0.2, 1);
+            transform: translateY(110%); /* Move further down for safety */
+            visibility: hidden; /* Hide completely when closed */
+            transition: transform 0.3s cubic-bezier(0, 0, 0.2, 1), visibility 0s linear 0.3s; /* Delay hiding visibility until slide ends */
         }
         #infoModal.open {
             transform: translateY(0);
+            visibility: visible; /* Show immediately when opened */
+            transition: transform 0.3s cubic-bezier(0, 0, 0.2, 1), visibility 0s linear 0s;
         }
 
         /* Gentle float animation for the hint */
@@ -163,7 +166,7 @@
         <!-- Container for Button -->
         <div class="flex items-center gap-3 pointer-events-auto">
             
-            <!-- RESTORED: Text Hint (Speech Bubble) with Mobile Safe Styles -->
+            <!-- Text Hint (Speech Bubble) -->
             <div id="locateHint" class="hint-bubble bg-white text-gray-800 text-xs font-bold py-3 px-4 rounded-xl shadow-xl border border-gray-100 relative cursor-pointer text-right min-w-[140px] shrink-0" onclick="locateUser()">
                 Currently at the store?<br>
                 <span class="text-blue-600">Click to locate yourself!</span>
