@@ -29,7 +29,7 @@
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
         }
 
-        /* --- GPS MARKER STYLES (UPDATED FOR BEAM) --- */
+        /* --- GPS MARKER STYLES --- */
         .gps-marker {
             position: relative;
             width: 24px !important;
@@ -64,7 +64,7 @@
             animation: pulse-blue-ring 2s infinite;
         }
 
-        /* ADDED: The Flashlight Beam */
+        /* The Flashlight Beam */
         .gps-beam {
             position: absolute;
             top: -24px; /* Position above the dot */
@@ -106,6 +106,15 @@
             animation: sparkle 2s infinite ease-in-out;
             color: #8b5cf6; /* Violet */
         }
+        
+        /* Force Modal Hidden Initially */
+        #infoModal {
+            transform: translateY(100%); 
+            transition: transform 0.3s cubic-bezier(0, 0, 0.2, 1);
+        }
+        #infoModal.open {
+            transform: translateY(0);
+        }
 
         /* Gentle float animation for the hint */
         @keyframes float-hint {
@@ -115,15 +124,6 @@
         .hint-bubble {
             animation: float-hint 3s ease-in-out infinite;
             transition: opacity 0.5s ease-out;
-        }
-        
-        /* --- FIX: Force Modal Hidden Initially --- */
-        #infoModal {
-            transform: translateY(100%); 
-            transition: transform 0.3s cubic-bezier(0, 0, 0.2, 1);
-        }
-        #infoModal.open {
-            transform: translateY(0);
         }
     </style>
 </head>
@@ -160,10 +160,11 @@
         <!-- Gertens Logo -->
         <img src="images/NEW_Gertens Standard Logo for anything- white300dpi.png" alt="Gertens Logo" class="w-32 mb-2 drop-shadow-lg opacity-90">
 
-        <!-- Container for Hint + Button -->
+        <!-- Container for Button -->
         <div class="flex items-center gap-3 pointer-events-auto">
-            <!-- Text Hint (Speech Bubble) -->
-            <div id="locateHint" class="hint-bubble bg-white/95 backdrop-blur text-gray-800 text-xs font-bold py-3 px-4 rounded-xl shadow-xl max-w-[180px] text-right relative cursor-pointer border border-gray-100" onclick="locateUser()">
+            
+            <!-- RESTORED: Text Hint (Speech Bubble) with Mobile Safe Styles -->
+            <div id="locateHint" class="hint-bubble bg-white text-gray-800 text-xs font-bold py-3 px-4 rounded-xl shadow-xl border border-gray-100 relative cursor-pointer text-right min-w-[140px] shrink-0" onclick="locateUser()">
                 Currently at the store?<br>
                 <span class="text-blue-600">Click to locate yourself!</span>
                 <!-- CSS Triangle Arrow pointing right -->
@@ -171,7 +172,7 @@
             </div>
 
             <!-- Find Me Button -->
-            <button onclick="locateUser()" class="bg-white w-14 h-14 rounded-full shadow-xl flex items-center justify-center text-blue-600 hover:text-blue-800 active:scale-95 transition relative z-10">
+            <button onclick="locateUser()" class="bg-white w-14 h-14 rounded-full shadow-xl flex items-center justify-center text-blue-600 hover:text-blue-800 active:scale-95 transition relative z-10 shrink-0">
                 <i class="fa-solid fa-location-crosshairs text-2xl"></i>
             </button>
         </div>
@@ -183,7 +184,6 @@
             <div class="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-4"></div>
             <div class="flex justify-between items-start mb-2">
                 <div>
-                    <!-- FIX: Removed "Row Name" default text to prevent confusion on load -->
                     <h2 id="modalRowTitle" class="text-2xl font-bold text-gray-900"></h2>
                     <div class="flex items-center gap-2 mt-1">
                         <div id="modalColorDot" class="w-3 h-3 rounded-full bg-gray-300"></div>
