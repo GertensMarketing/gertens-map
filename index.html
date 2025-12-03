@@ -145,17 +145,26 @@
 
     <!-- Top Search Bar -->
     <div class="absolute top-0 left-0 right-0 z-[1000] p-4 pointer-events-none">
-        <div class="glass pointer-events-auto w-full max-w-md mx-auto rounded-xl flex items-center shadow-lg transition-all focus-within:ring-2 ring-red-700 relative">
-            <i class="fa-solid fa-magnifying-glass text-gray-400 ml-4"></i>
+        <div class="glass pointer-events-auto w-full max-w-md mx-auto rounded-xl flex items-center shadow-lg transition-all focus-within:ring-2 ring-red-700 relative overflow-hidden">
+            
+            <!-- WATERMARK LOGO -->
+            <img src="images/gertens-gray-back-logo.png" 
+                 alt="" 
+                 class="absolute inset-0 w-full h-full object-cover opacity-10 pointer-events-none mix-blend-multiply">
+
+            <!-- Search Icon (Raised z-index) -->
+            <i class="fa-solid fa-magnifying-glass text-gray-400 ml-4 relative z-10"></i>
+            
+            <!-- Input Field (Raised z-index) -->
             <input type="text" id="searchInput" placeholder="Locate a plant or item..." 
-                   class="w-full bg-transparent border-none outline-none px-3 py-4 text-gray-800 text-lg placeholder-gray-500" autocomplete="off">
+                   class="w-full bg-transparent border-none outline-none px-3 py-4 text-gray-800 text-lg placeholder-gray-500 relative z-10" autocomplete="off">
             
             <!-- AI Loading Spinner (Hidden by default) -->
-            <div id="aiLoader" class="hidden absolute right-12 text-violet-500 flex items-center gap-2 text-xs font-bold bg-violet-50 px-2 py-1 rounded-full">
+            <div id="aiLoader" class="hidden absolute right-12 text-violet-500 flex items-center gap-2 text-xs font-bold bg-violet-50 px-2 py-1 rounded-full z-20">
                 <i class="fa-solid fa-wand-magic-sparkles fa-spin"></i> AI Thinking...
             </div>
 
-            <button id="clearSearch" class="hidden text-gray-400 hover:text-red-600 px-4 py-2">
+            <button id="clearSearch" class="hidden text-gray-400 hover:text-red-600 px-4 py-2 relative z-20">
                 <i class="fa-solid fa-times"></i>
             </button>
         </div>
