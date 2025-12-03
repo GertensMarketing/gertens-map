@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Gertens Garden Finder</title>
+    <title>Gertens Store Map</title>
     
     <!-- FAVICON -->
     <link rel="icon" type="image/png" href="images/gertens-favicon.png">
@@ -29,7 +29,7 @@
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
         }
 
-        /* The Blue Dot Pulse Animation (Google Maps Style) */
+        /* --- GPS MARKER STYLES (UPDATED FOR BEAM) --- */
         .gps-marker {
             position: relative;
             width: 24px !important;
@@ -48,7 +48,7 @@
             background-color: #3b82f6; /* Blue */
             border: 2px solid white;
             border-radius: 50%;
-            z-index: 2;
+            z-index: 10; /* Above beam */
             box-shadow: 0 1px 3px rgba(0,0,0,0.3);
         }
 
@@ -58,10 +58,28 @@
             position: absolute;
             width: 100%;
             height: 100%;
-            background-color: rgba(59, 130, 246, 0.4); /* Semi-transparent Blue */
+            background-color: rgba(59, 130, 246, 0.4); 
             border-radius: 50%;
-            z-index: 1;
+            z-index: 5;
             animation: pulse-blue-ring 2s infinite;
+        }
+
+        /* ADDED: The Flashlight Beam */
+        .gps-beam {
+            position: absolute;
+            top: -24px; /* Position above the dot */
+            left: -18px; /* Center horizontally relative to dot width */
+            width: 60px;
+            height: 60px;
+            /* A gradient cone shape */
+            background: radial-gradient(circle at 50% 100%, rgba(59, 130, 246, 0.6) 0%, rgba(59, 130, 246, 0) 70%);
+            /* Clip it to look like a flashlight beam (triangle) */
+            clip-path: polygon(50% 100%, 0% 0%, 100% 0%);
+            transform-origin: 50% 100%; /* Rotate around the bottom center (where the dot is) */
+            z-index: 1; /* Behind the dot */
+            display: none; /* Hidden until we get compass data */
+            transition: transform 0.1s linear; /* Smooth rotation */
+            pointer-events: none;
         }
 
         @keyframes pulse-blue-ring {
@@ -159,7 +177,7 @@
         </div>
     </div>
 
-    <!-- Product Details Modal (Updated with cleaner placeholders and explicit hidden state) -->
+    <!-- Product Details Modal -->
     <div id="infoModal" class="absolute bottom-0 left-0 right-0 z-[1001] bg-white rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.2)]">
         <div class="p-6 pb-24"> 
             <div class="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-4"></div>
@@ -569,6 +587,22 @@
             }
 
             const icon = document.querySelector('.fa-location-crosshairs');
+            
+            // --- ADDED: Request Orientation Permissions (iOS 13+) ---
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission()
+                    .then(response => {
+                        if (response === 'granted') {
+                            window.addEventListener('deviceorientation', handleOrientation);
+                        }
+                    })
+                    .catch(console.error);
+            } else {
+                // Android / Non-iOS
+                window.addEventListener('deviceorientation', handleOrientation);
+            }
+            // -----------------------------------------------------
+
             // 1. If tracking already set up, just fly to current marker
             if (userMarker) {
                 map.flyTo(userMarker.getLatLng(), 19);
@@ -589,9 +623,11 @@
                     icon.classList.remove('fa-spin');
 
                     if (!userMarker) {
-                        // First Fix: Create Marker
+                        // First Fix: Create Marker WITH Beam HTML
                         const blueDotIcon = L.divIcon({
                             className: 'gps-marker',
+                            // ADDED: HTML structure for the beam
+                            html: '<div id="userHeading" class="gps-beam"></div>', 
                             iconSize: [24, 24], 
                             iconAnchor: [12, 12]
                         });
@@ -620,7 +656,6 @@
                         icon.classList.remove('fa-spin');
                         console.log("Please enable location services.");
                     }
-                    // For timeouts, just keep trying (don't stop spinner or alert)
                 },
                 { 
                     enableHighAccuracy: true,
@@ -628,6 +663,29 @@
                     timeout: 20000 
                 }
             );
+        }
+
+        // --- ADDED: Handle Orientation Updates ---
+        function handleOrientation(event) {
+            let heading = null;
+            
+            // iOS property
+            if (event.webkitCompassHeading) {
+                heading = event.webkitCompassHeading;
+            } 
+            // Android / Standard property
+            else if (event.alpha !== null) {
+                heading = 360 - event.alpha; 
+            }
+
+            if (heading !== null) {
+                const beam = document.getElementById('userHeading');
+                if(beam) {
+                    beam.style.display = 'block'; 
+                    // Rotate based on heading
+                    beam.style.transform = `rotate(${heading}deg)`;
+                }
+            }
         }
 
         // Start App
