@@ -235,8 +235,11 @@
         const apiKey = "AIzaSyB4V71q1d5AhErZn1NrcNQR_Tp4wX7RL5E"; 
         
         // 1. Connect to the Live Sheet
-        const GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRo6MENz0SiOu7rr77XEqxcEbmYxvYCLSbBwPOBQoCe9bfW8PQIlMwVMGePG5zgnqC7LXNF3x6MrT6L/pub?gid=0&single=true&output=csv";
+        const GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRo6MENz0SiOu7rr77XEqxcEbmYxvYCLSbBwPOBQoCe9bfW8PQIlMwVMGePG5zgnqC7LXNF3x6MrT6L/pub?output=csv";
         
+        // NEW: MAP IMAGE CONFIG
+        const MAP_IMAGE_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRo6MENz0SiOu7rr77XEqxcEbmYxvYCLSbBwPOBQoCe9bfW8PQIlMwVMGePG5zgnqC7LXNF3x6MrT6L/pub?gid=2021843794&single=true&output=csv";
+
         // 2. Default center (Gertens)
         const START_LOC = [44.872063, -93.051572]; 
 
@@ -273,6 +276,45 @@
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
             maxZoom: 20
         }).addTo(map);
+
+        // --- FETCH DYNAMIC BACKGROUND MAP ---
+        function fetchMapImageConfig() {
+            Papa.parse(MAP_IMAGE_CSV_URL, {
+                download: true, header: false,
+                complete: function(results) {
+                    let configStr = "";
+                    for(let i=0; i<results.data.length; i++) {
+                        for(let j=0; j<results.data[i].length; j++) {
+                            const cell = results.data[i][j] || "";
+                            if(cell.trim().startsWith("const CUSTOM_IMAGE")) {
+                                const start = cell.indexOf('{');
+                                const end = cell.lastIndexOf('}');
+                                if(start > -1 && end > -1) {
+                                    configStr = cell.substring(start, end+1);
+                                    break;
+                                }
+                            } else if (cell.trim().startsWith("{") && cell.trim().includes("url")) {
+                                configStr = cell.trim();
+                                break;
+                            }
+                        }
+                        if(configStr) break;
+                    }
+
+                    if(configStr) {
+                        try {
+                            const config = (new Function("return " + configStr))();
+                            if(config.url && config.bounds) {
+                                L.imageOverlay(config.url, config.bounds, { opacity: config.opacity || 0.8, zIndex: 2 }).addTo(map);
+                            }
+                        } catch(e) {
+                            console.error("Failed to load map overlay", e);
+                        }
+                    }
+                }
+            });
+        }
+        fetchMapImageConfig(); // Call on load
 
         let allRows = []; // Will store data from Google Sheet
         let polygonLayers = {}; // Leaflet layers
@@ -365,19 +407,8 @@
             });
         }
 
-        // --- UI & HINT LOGIC ---
-        function dismissHint() {
-            const hint = document.getElementById('locateHint');
-            if(hint && hint.style.opacity !== '0') {
-                hint.style.opacity = '0';
-                hint.style.pointerEvents = 'none';
-                setTimeout(() => hint.remove(), 500); // Remove from DOM after fade
-            }
-        }
-
         // --- INTERACTION ---
         function selectRow(data) {
-            dismissHint(); 
             if (currentSelection) {
                 if(currentSelection._path) currentSelection._path.classList.remove('highlight-row');
             }
@@ -421,11 +452,8 @@
 
         map.on('click', () => {
             closeModal();
-            dismissHint(); 
         });
         
-        map.on('dragstart', dismissHint);
-
         function navigateHere() {
             locateUser(); 
         }
@@ -437,7 +465,6 @@
         const aiLoader = document.getElementById('aiLoader');
 
         searchInput.addEventListener('input', (e) => {
-            dismissHint(); 
             const q = e.target.value.toLowerCase();
             
             // Clear previous AI timer
@@ -600,7 +627,6 @@
 
         // --- GPS BLUE DOT ---
         function locateUser() {
-            dismissHint(); 
             if (!navigator.geolocation) {
                 console.log("Your browser does not support Geolocation.");
                 return;
