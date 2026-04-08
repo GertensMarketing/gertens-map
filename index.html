@@ -19,7 +19,10 @@
 
     <style>
         /* FIX: Changed height to 100% and added width 100% to ensure full coverage */
-        body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background: #f0fdf4; font-family: sans-serif; }
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background: #ffffff; font-family: sans-serif; }
+        
+        /* Force Leaflet map container to be pure white instead of default gray */
+        .leaflet-container { background: #ffffff !important; }
         
         /* FIX: Changed from 100vh to absolute positioning to anchor to bottom of screen on mobile */
         #map { position: absolute; top: 0; left: 0; bottom: 0; right: 0; width: 100%; height: 100%; z-index: 0; }
@@ -266,15 +269,17 @@
             maxZoom: 20
         }).setView(START_LOC, 19);
 
-        // Satellite Layer
+        // Satellite Layer (Faded to 5% opacity against the pure white background to create a 95% white-wash effect)
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
             attribution: 'Tiles &copy; Esri',
-            maxZoom: 20
+            maxZoom: 20,
+            opacity: 0.05
         }).addTo(map);
         
-        // Labels
+        // Labels (Kept slightly higher at 15% opacity so street names are faint but readable)
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
-            maxZoom: 20
+            maxZoom: 20,
+            opacity: 0.15
         }).addTo(map);
 
         // --- FETCH DYNAMIC BACKGROUND MAP ---
