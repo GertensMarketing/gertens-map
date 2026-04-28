@@ -243,11 +243,14 @@
         // NEW: MAP IMAGE CONFIG
         const MAP_IMAGE_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRo6MENz0SiOu7rr77XEqxcEbmYxvYCLSbBwPOBQoCe9bfW8PQIlMwVMGePG5zgnqC7LXNF3x6MrT6L/pub?gid=2021843794&single=true&output=csv";
 
+        // NEW: ROW TYPES CONFIG
+        const ROW_TYPES_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRo6MENz0SiOu7rr77XEqxcEbmYxvYCLSbBwPOBQoCe9bfW8PQIlMwVMGePG5zgnqC7LXNF3x6MrT6L/pub?gid=578959698&single=true&output=csv";
+
         // 2. Default center (Gertens)
         const START_LOC = [44.872063, -93.051572]; 
 
-        // 3. Color Definitions (Matching the Admin Tool)
-        const ROW_TYPES = {
+        // 3. Color Definitions (Matching the Admin Tool) - Changed to 'let' so it can be updated
+        let ROW_TYPES = {
             "Annuals": "#8B0000",
             "Color Block": "#FF00FF",
             "Evergreens": "#006400",
@@ -374,9 +377,17 @@
                     const coords = JSON.parse(coordsRaw);
                     const color = ROW_TYPES[type] || "#8B0000"; // Default to Red if type unknown
 
+                    // Helper to check for true rectangle
+                    const isRectangle = (c) => {
+                        if (!c || !Array.isArray(c) || c.length !== 4) return false;
+                        const lats = new Set(c.map(pt => pt[0]));
+                        const lngs = new Set(c.map(pt => pt[1]));
+                        return lats.size === 2 && lngs.size === 2;
+                    };
+
                     // Create Shape
                     let poly;
-                    if (coords.length === 4) {
+                    if (isRectangle(coords)) {
                         // Box
                         poly = L.rectangle(L.latLngBounds(coords), { color: color, fillColor: color, fillOpacity: 0.3, weight: 2 });
                     } else {
@@ -740,8 +751,52 @@
             }
         }
 
-        // Start App
-        init();
+        // --- FETCH DYNAMIC ROW TYPES ---
+        function fetchRowTypesConfig(callback) {
+            Papa.parse(ROW_TYPES_CSV_URL + '&t=' + Date.now(), {
+                download: true, header: false,
+                complete: function(results) {
+                    let configStr = "";
+                    for(let i=0; i<results.data.length; i++) {
+                        for(let j=0; j<results.data[i].length; j++) {
+                            const cell = results.data[i][j] || "";
+                            if(cell.trim().startsWith("const ROW_TYPES")) {
+                                const start = cell.indexOf('{');
+                                const end = cell.lastIndexOf('}');
+                                if(start > -1 && end > -1) {
+                                    configStr = cell.substring(start, end+1);
+                                    break;
+                                }
+                            }
+                        }
+                        if(configStr) break;
+                    }
+
+                    if(configStr) {
+                        try {
+                            // Safely evaluate the configuration object
+                            const parsedTypes = (new Function("return " + configStr))();
+                            if(parsedTypes && typeof parsedTypes === 'object') {
+                                ROW_TYPES = parsedTypes;
+                            }
+                        } catch(e) {
+                            console.error("Failed to load row types config", e);
+                        }
+                    }
+                    // Initialize the rest of the map data after colors are established
+                    if(callback) callback();
+                },
+                error: function() {
+                    console.warn("Could not load Row Types from CSV, using defaults.");
+                    if(callback) callback();
+                }
+            });
+        }
+
+        // Start App by fetching Row Types first, then initializing map data
+        fetchRowTypesConfig(() => {
+            init();
+        });
 
     </script>
 </body>
