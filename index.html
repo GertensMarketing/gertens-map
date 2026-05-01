@@ -246,6 +246,10 @@
         // NEW: ROW TYPES CONFIG
         const ROW_TYPES_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRo6MENz0SiOu7rr77XEqxcEbmYxvYCLSbBwPOBQoCe9bfW8PQIlMwVMGePG5zgnqC7LXNF3x6MrT6L/pub?gid=578959698&single=true&output=csv";
 
+        // NEW: MASTER PLANT LIST CONFIG
+        const MASTER_LIST_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRo6MENz0SiOu7rr77XEqxcEbmYxvYCLSbBwPOBQoCe9bfW8PQIlMwVMGePG5zgnqC7LXNF3x6MrT6L/pub?gid=1166776934&single=true&output=csv"; 
+        let masterPlantList = [];
+
         // 2. Default center (Gertens)
         const START_LOC = [44.872063, -93.051572]; 
 
@@ -550,17 +554,22 @@
             }
             clearBtn.classList.remove('hidden');
 
-            // 1. Run Instant Local Search
+            // 1. Run Instant Local Search on Rows
             const localMatches = allRows.filter(r => 
                 r.name.toLowerCase().includes(q) || 
                 r.products.toLowerCase().includes(q)
             );
 
-            // Display Local Results immediately
-            displayResults(localMatches);
+            // 2. Run Plant Autocomplete Search
+            const plantMatches = masterPlantList.filter(p => 
+                p.common.toLowerCase().includes(q) || p.latin.toLowerCase().includes(q)
+            ).slice(0, 5); // Limit to top 5 plant suggestions
 
-            // 2. If NO local matches, trigger AI after delay
-            if (localMatches.length === 0 && q.length > 2) {
+            // Display Results immediately
+            displayResults(localMatches, false, plantMatches);
+
+            // 3. If NO local matches AND NO plant matches, trigger AI after delay
+            if (localMatches.length === 0 && plantMatches.length === 0 && q.length > 2) {
                 resultsBox.classList.remove('hidden');
                 resultsBox.innerHTML = `<div class="p-4 text-gray-400 text-center text-sm italic">No exact match. Searching database...</div>`;
                 
@@ -650,10 +659,46 @@
             }
         }
 
-        function displayResults(matches, isAiResult = false) {
+        function displayResults(matches, isAiResult = false, plantMatches = []) {
             resultsBox.innerHTML = '';
+            let hasContent = false;
             
+            // 1. Render Plant Autocomplete Suggestions
+            if (plantMatches && plantMatches.length > 0 && !isAiResult) {
+                hasContent = true;
+                resultsBox.classList.remove('hidden');
+                
+                const pHeader = document.createElement('div');
+                pHeader.className = "px-4 py-2 bg-green-50 text-green-700 text-xs font-bold border-b border-green-100 flex items-center gap-2";
+                pHeader.innerHTML = `<i class="fa-solid fa-leaf"></i> Plant Suggestions`;
+                resultsBox.appendChild(pHeader);
+
+                plantMatches.forEach(p => {
+                    const div = document.createElement('div');
+                    div.className = "p-3 hover:bg-slate-50 cursor-pointer border-b border-gray-100 flex justify-between items-center transition";
+                    
+                    let displayStr = p.common;
+                    if (p.latin && p.latin.toLowerCase() !== p.common.toLowerCase()) {
+                        displayStr += ` <span class="italic text-gray-500 text-xs">(${p.latin})</span>`;
+                    }
+
+                    div.innerHTML = `
+                        <div class="text-sm font-bold text-gray-800">${displayStr}</div>
+                        ${p.type ? `<div class="text-[10px] font-black uppercase text-gray-500 bg-gray-100 border border-gray-200 shadow-sm px-2 py-0.5 rounded ml-2 shrink-0">${p.type}</div>` : ''}
+                    `;
+                    div.onclick = () => {
+                        // Fill search bar and trigger a new search specifically for this plant
+                        searchInput.value = p.common;
+                        searchInput.dispatchEvent(new Event('input'));
+                        searchInput.focus();
+                    };
+                    resultsBox.appendChild(div);
+                });
+            }
+
+            // 2. Render Row Location Matches
             if (matches.length > 0) {
+                hasContent = true;
                 resultsBox.classList.remove('hidden');
                 
                 if (isAiResult) {
@@ -661,9 +706,15 @@
                     header.className = "px-4 py-2 bg-violet-50 text-violet-600 text-xs font-bold border-b border-violet-100 flex items-center gap-2";
                     header.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles ai-icon"></i> AI Suggestions`;
                     resultsBox.appendChild(header);
+                } else if (plantMatches && plantMatches.length > 0) {
+                    // Add a visual separator if we also have plant suggestions above this
+                    const locHeader = document.createElement('div');
+                    locHeader.className = "px-4 py-2 bg-gray-50 text-gray-500 text-xs font-bold border-b border-gray-100 flex items-center gap-2";
+                    locHeader.innerHTML = `<i class="fa-solid fa-map-pin"></i> In-Store Locations`;
+                    resultsBox.appendChild(locHeader);
                 }
 
-                // --- NEW LOGIC: SHOW ALL LOCATIONS BUTTON ---
+                // --- SHOW ALL LOCATIONS BUTTON ---
                 if (matches.length > 1) {
                     const showAllDiv = document.createElement('div');
                     showAllDiv.className = "p-3 bg-blue-50 hover:bg-blue-100 cursor-pointer border-b border-blue-100 flex items-center justify-between text-blue-700 transition";
@@ -678,18 +729,17 @@
                     };
                     resultsBox.appendChild(showAllDiv);
                 }
-                // --------------------------------------------
 
                 matches.forEach(m => {
                     const div = document.createElement('div');
                     div.className = "p-4 hover:bg-slate-50 cursor-pointer border-b border-gray-100 last:border-0";
                     div.innerHTML = `
                         <div class="flex items-center gap-2">
-                            <div class="w-2 h-2 rounded-full" style="background-color: ${m.color}"></div>
+                            <div class="w-2 h-2 rounded-full shrink-0" style="background-color: ${m.color}"></div>
                             <div class="font-bold text-gray-800">${m.name}</div>
                             ${isAiResult ? '<span class="ml-auto text-xs bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full">Match</span>' : ''}
                         </div>
-                        <div class="text-sm text-gray-500 truncate ml-4">${m.products}</div>
+                        <div class="text-sm text-gray-500 truncate ml-4 mt-0.5">${m.products}</div>
                     `;
                     div.onclick = () => {
                         selectRow(m);
@@ -699,9 +749,9 @@
                     };
                     resultsBox.appendChild(div);
                 });
-            } else if (!isAiResult) {
-                // Only hide if it's a local search failure; 
-                // AI search failure handles its own empty state message
+            }
+            
+            if (!hasContent && !isAiResult) {
                 resultsBox.classList.add('hidden');
             }
         }
@@ -866,7 +916,29 @@
             });
         }
 
-        // Start App by fetching Row Types first, then initializing map data
+        // --- FETCH MASTER PLANT LIST FOR AUTOCOMPLETE ---
+        function fetchMasterPlantList() {
+            if(!MASTER_LIST_URL) return;
+            Papa.parse(MASTER_LIST_URL + '&t=' + Date.now(), {
+                download: true, header: false,
+                complete: function(results) {
+                    const fetchedPlants = results.data.map(row => {
+                        const commonName = row[0] ? row[0].trim() : "";
+                        const latinName = row[1] ? row[1].trim() : "";
+                        const plantType = row[2] ? row[2].trim() : "";
+                        
+                        if (!commonName) return null;
+                        
+                        return { common: commonName, latin: latinName, type: plantType };
+                    }).filter(p => p !== null);
+                    
+                    if(fetchedPlants.length > 0) masterPlantList = fetchedPlants;
+                }
+            });
+        }
+
+        // Start App by fetching configs first, then initializing map data
+        fetchMasterPlantList(); // Fetch autocomplete list in background
         fetchRowTypesConfig(() => {
             init();
         });
