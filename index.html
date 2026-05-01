@@ -327,6 +327,7 @@
         let allRows = []; // Will store data from Google Sheet
         let polygonLayers = {}; // Leaflet layers
         let currentSelection = null;
+        let multiSelections = []; // NEW: Array to track multiple highlighted rows
         let userMarker = null;
         let userAccuracyCircle = null; // New circle for accuracy
         let searchTimeout = null; // For debounce
@@ -424,10 +425,21 @@
         }
 
         // --- INTERACTION ---
-        function selectRow(data) {
+        function clearHighlights() {
             if (currentSelection) {
                 if(currentSelection._path) currentSelection._path.classList.remove('highlight-row');
+                currentSelection = null;
             }
+            if (multiSelections.length > 0) {
+                multiSelections.forEach(poly => {
+                    if(poly._path) poly._path.classList.remove('highlight-row');
+                });
+                multiSelections = [];
+            }
+        }
+
+        function selectRow(data) {
+            clearHighlights();
 
             const poly = data.layer;
             if(poly._path) poly._path.classList.add('highlight-row');
@@ -457,13 +469,57 @@
             document.getElementById('infoModal').classList.add('open');
         }
 
+        // --- NEW: Multi-Location Viewer ---
+        function showMultipleRows(matches, query) {
+            clearHighlights();
+
+            let bounds = L.latLngBounds();
+
+            matches.forEach(m => {
+                const poly = m.layer;
+                if(poly._path) poly._path.classList.add('highlight-row');
+                multiSelections.push(poly);
+                bounds.extend(poly.getBounds());
+            });
+
+            // Calculate bottom padding for modal (45% of screen height)
+            const bottomPadding = window.innerHeight * 0.45;
+
+            // Zoom out to fit all matches, padding bottom so modal doesn't cover them
+            map.flyToBounds(bounds, { 
+                paddingTopLeft: [40, 80], // 80px top padding for search bar clearance
+                paddingBottomRight: [40, bottomPadding],
+                duration: 1.0,
+                easeLinearity: 0.5,
+                maxZoom: 20 // Don't zoom in too far if they are close together
+            });
+
+            document.getElementById('modalRowTitle').innerText = "Multiple Locations";
+            document.getElementById('modalRowType').innerText = `Search: "${query}"`;
+            document.getElementById('modalColorDot').style.backgroundColor = '#fbbf24'; // Match the amber highlight color
+            
+            // Format the list of places
+            const placesList = matches.map(m => `
+                <div class="flex items-center gap-2 mt-2">
+                    <div class="w-2 h-2 rounded-full shrink-0" style="background-color: ${m.color}"></div>
+                    <span class="font-bold text-gray-700 text-sm">${m.name}</span>
+                </div>
+            `).join('');
+
+            document.getElementById('modalContent').innerHTML = `
+                <div class="font-medium text-gray-800">Found ${matches.length} matching areas:</div>
+                <div class="mt-1 max-h-32 overflow-y-auto pr-2">
+                    ${placesList}
+                </div>
+            `;
+            
+            document.getElementById('infoModal').classList.add('open');
+        }
+
         function closeModal() {
             // FIX: Use explicit class for visibility
             document.getElementById('infoModal').classList.remove('open');
-            if (currentSelection) {
-                if(currentSelection._path) currentSelection._path.classList.remove('highlight-row');
-                currentSelection = null;
-            }
+            clearHighlights();
         }
 
         map.on('click', () => {
@@ -606,6 +662,23 @@
                     header.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles ai-icon"></i> AI Suggestions`;
                     resultsBox.appendChild(header);
                 }
+
+                // --- NEW LOGIC: SHOW ALL LOCATIONS BUTTON ---
+                if (matches.length > 1) {
+                    const showAllDiv = document.createElement('div');
+                    showAllDiv.className = "p-3 bg-blue-50 hover:bg-blue-100 cursor-pointer border-b border-blue-100 flex items-center justify-between text-blue-700 transition";
+                    showAllDiv.innerHTML = `
+                        <div class="font-bold text-sm"><i class="fa-solid fa-map-location-dot mr-2"></i> Show all ${matches.length} locations on map</div>
+                        <i class="fa-solid fa-chevron-right text-xs"></i>
+                    `;
+                    showAllDiv.onclick = () => {
+                        showMultipleRows(matches, searchInput.value || "Search Results");
+                        resultsBox.classList.add('hidden');
+                        searchInput.blur();
+                    };
+                    resultsBox.appendChild(showAllDiv);
+                }
+                // --------------------------------------------
 
                 matches.forEach(m => {
                     const div = document.createElement('div');
