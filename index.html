@@ -18,8 +18,18 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <style>
-        /* FIX: Changed height to 100% and added width 100% to ensure full coverage */
-        body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background: #ffffff; font-family: sans-serif; }
+        /* FIX: Advanced Mobile Viewport Handling for Chrome/Safari on iOS */
+        body, html { 
+            margin: 0; 
+            padding: 0; 
+            width: 100%; 
+            height: 100%; 
+            overflow: hidden; 
+            background: #ffffff; 
+            font-family: sans-serif; 
+            position: relative; /* Removed position:fixed as it breaks Chrome iOS */
+            touch-action: none; /* Prevents mobile pull-to-refresh bouncing */
+        }
         
         /* Force Leaflet map container to be pure white instead of default gray */
         .leaflet-container { background: #ffffff !important; }
@@ -539,6 +549,31 @@
         const resultsBox = document.getElementById('searchResults');
         const clearBtn = document.getElementById('clearSearch');
         const aiLoader = document.getElementById('aiLoader');
+
+        // FIX: Advanced mobile keyboard handling using visualViewport API (Fixes Chrome on iOS)
+        function handleViewportChange() {
+            if (window.visualViewport) {
+                // Force body height to exactly match the available visual space minus the keyboard
+                document.body.style.height = window.visualViewport.height + 'px';
+                window.scrollTo(0, 0);
+            }
+            if (map) {
+                map.invalidateSize();
+            }
+        }
+
+        // Listen for screen resizes (like the keyboard opening/closing)
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', handleViewportChange);
+            handleViewportChange(); // Run once on load
+        }
+
+        // Fallback for when the search bar loses focus
+        searchInput.addEventListener('blur', () => {
+            window.scrollTo(0, 0);
+            setTimeout(handleViewportChange, 100);
+            setTimeout(handleViewportChange, 300); // Double-check after iOS animations finish
+        });
 
         searchInput.addEventListener('input', (e) => {
             const q = e.target.value.toLowerCase();
